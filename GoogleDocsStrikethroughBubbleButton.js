@@ -196,6 +196,33 @@
             simulateStrikethroughKeypress(targetDoc);
         });
 
+        // Add drag functionality to the button
+        button.addEventListener('mousedown', (event) => {
+            event.preventDefault();
+
+            let shiftX = event.clientX - button.getBoundingClientRect().left;
+            let shiftY = event.clientY - button.getBoundingClientRect().top;
+
+            function moveAt(pageX, pageY) {
+                button.style.left = pageX - shiftX + 'px';
+                button.style.top = pageY - shiftY + 'px';
+                button.style.bottom = 'auto'; // Reset bottom to auto for dynamic positioning
+                button.style.right = 'auto'; // Reset right to auto for dynamic positioning
+            }
+
+            function onMouseMove(event) {
+                moveAt(event.pageX, event.pageY);
+            }
+
+            document.addEventListener('mousemove', onMouseMove);
+
+            button.addEventListener('mouseup', () => {
+                document.removeEventListener('mousemove', onMouseMove);
+            }, { once: true });
+        });
+
+        button.addEventListener('dragstart', () => false); // Disable default drag behavior
+
         // Append the button to the main document's body (so it floats above the iframe)
         document.body.appendChild(button);
         GM_log("Strikethrough Button: Button added to the page.");
