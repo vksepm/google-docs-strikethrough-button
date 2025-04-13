@@ -135,6 +135,9 @@
 
 
     // --- Create and add the button ---
+    let retryCount = 0;
+    const MAX_RETRIES = 10; // Limit retries to avoid infinite loops
+
     function addButton() {
         // Check if button already exists
         if (document.getElementById('strikethrough-bubble-button')) {
@@ -145,7 +148,12 @@
         const editorIframe = document.querySelector('iframe.docs-texteventtarget-iframe');
 
         if (!editorIframe || !editorIframe.contentDocument) {
-            // If the iframe isn't ready yet, wait a bit and try again.
+            retryCount++;
+            if (retryCount > MAX_RETRIES) {
+                GM_log("Strikethrough Button: Failed to find the editor iframe after maximum retries.");
+                return;
+            }
+            GM_log(`Strikethrough Button: Editor iframe not found. Retrying... (${retryCount}/${MAX_RETRIES})`);
             setTimeout(addButton, 500); // Retry after 500ms
             return;
         }
