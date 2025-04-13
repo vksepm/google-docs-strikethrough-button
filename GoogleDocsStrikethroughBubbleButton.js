@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Google Docs Strikethrough Bubble Button
+// @name         Google Docs Formatting Toolbar
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Adds a floating button to Google Docs to toggle strikethrough (Alt+Shift+5). Handles TrustedHTML. Attempts focus and keyup.
+// @version      1.4
+// @description  Adds a floating toolbar to Google Docs for text formatting options like Bold, Italic, Underline, and Strikethrough. Handles TrustedHTML. Attempts focus and keyup.
 // @author       Gemini
 // @match        https://docs.google.com/document/d/*
 // @grant        GM_addStyle
@@ -161,61 +161,106 @@
         GM_log("Strikethrough Button: Editor iframe found. Adding button.");
         const targetDoc = editorIframe.contentDocument;
 
-        // Create the button element
-        const button = document.createElement('button');
-        button.id = 'strikethrough-bubble-button';
-        button.title = 'Toggle Strikethrough (Alt+Shift+5)'; // Tooltip
+        // Create a toolbar container
+        const toolbar = document.createElement('div');
+        toolbar.id = 'formatting-toolbar';
+        toolbar.style.position = 'fixed';
+        toolbar.style.bottom = '20px';
+        toolbar.style.right = '20px';
+        toolbar.style.display = 'flex';
+        toolbar.style.flexDirection = 'column'; // Update toolbar styling for vertical alignment
+        toolbar.style.gap = '10px';
+        toolbar.style.zIndex = Z_INDEX;
 
-        // --- Create SVG Icon using DOM methods (avoids TrustedHTML issues) ---
-        const svgNS = "http://www.w3.org/2000/svg";
-        const svg = document.createElementNS(svgNS, "svg");
-        // Set attributes using setAttribute
-        svg.setAttribute("xmlns", svgNS);
-        svg.setAttribute("width", "24");
-        svg.setAttribute("height", "24");
-        svg.setAttribute("viewBox", "0 0 24 24");
-        svg.setAttribute("fill", "none");
-        svg.setAttribute("stroke", "currentColor");
-        svg.setAttribute("stroke-width", "2");
-        svg.setAttribute("stroke-linecap", "round");
-        svg.setAttribute("stroke-linejoin", "round");
-        svg.classList.add("strikethrough-icon");
+        // Helper function to create a button
+        function createButton(title, shortcut, iconPath, onClick) {
+            const button = document.createElement('button');
+            button.title = `${title} (${shortcut})`;
+            button.style.width = BUTTON_SIZE;
+            button.style.height = BUTTON_SIZE;
+            button.style.backgroundColor = BUTTON_BACKGROUND;
+            button.style.color = BUTTON_ICON_COLOR;
+            button.style.border = 'none';
+            button.style.borderRadius = '50%';
+            button.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
+            button.style.cursor = 'pointer';
+            button.style.display = 'flex';
+            button.style.justifyContent = 'center';
+            button.style.alignItems = 'center';
+            button.style.fontSize = '20px';
+            button.style.fontFamily = 'Arial, sans-serif'; // Ensure consistent font
+            button.style.transition = 'background-color 0.2s ease, transform 0.1s ease';
 
-        const path1 = document.createElementNS(svgNS, "path");
-        path1.setAttribute("d", "M16 4H9a3 3 0 0 0-2.83 4");
-        svg.appendChild(path1);
-        const path2 = document.createElementNS(svgNS, "path");
-        path2.setAttribute("d", "M14 12a4 4 0 0 1 0 8H6");
-        svg.appendChild(path2);
-        const line1 = document.createElementNS(svgNS, "line");
-        line1.setAttribute("x1", "4");
-        line1.setAttribute("x2", "20");
-        line1.setAttribute("y1", "12");
-        line1.setAttribute("y2", "12");
-        svg.appendChild(line1);
+            // Add hover and active effects
+            button.addEventListener('mouseover', () => {
+                button.style.backgroundColor = '#357ABD';
+            });
+            button.addEventListener('mouseout', () => {
+                button.style.backgroundColor = BUTTON_BACKGROUND;
+            });
+            button.addEventListener('mousedown', () => {
+                button.style.transform = 'scale(0.95)';
+            });
+            button.addEventListener('mouseup', () => {
+                button.style.transform = 'scale(1)';
+            });
 
-        button.appendChild(svg);
-        // --- End SVG Icon Creation ---
+            // Add click event
+            button.addEventListener('click', onClick);
 
+            // Add text label for the button
+            const label = document.createElement('span');
+            label.textContent = title.charAt(0); // Use the first letter of the title as the label
+            label.style.color = BUTTON_ICON_COLOR;
+            label.style.fontSize = '16px';
+            label.style.fontFamily = 'Arial, sans-serif';
+            button.appendChild(label);
 
-        // Add click event listener
-        button.addEventListener('click', () => {
-            // Pass the iframe's document to the simulation function
-            simulateStrikethroughKeypress(targetDoc);
-        });
+            return button;
+        }
+
+        // Add buttons to the toolbar
+        toolbar.appendChild(createButton('Bold', 'Ctrl+B', null, () => simulateKeypress(targetDoc, 'b', true, false)));
+        toolbar.appendChild(createButton('Italic', 'Ctrl+I', null, () => simulateKeypress(targetDoc, 'i', true, false)));
+        toolbar.appendChild(createButton('Underline', 'Ctrl+U', null, () => simulateKeypress(targetDoc, 'u', true, false)));
+        toolbar.appendChild(createButton('Strikethrough', 'Alt+Shift+5', null, () => simulateKeypress(targetDoc, '5', false, true, true)));
+
+        // Append the toolbar to the document
+        document.body.appendChild(toolbar);
+
+        // Function to simulate keypress for formatting actions
+        function simulateKeypress(targetDocument, key, ctrlKey = false, altKey = false, shiftKey = false) {
+            const eventOptions = {
+                key: key,
+                code: `Key${key.toUpperCase()}`,
+                keyCode: key.toUpperCase().charCodeAt(0),
+                which: key.toUpperCase().charCodeAt(0),
+                ctrlKey: ctrlKey,
+                altKey: altKey,
+                shiftKey: shiftKey,
+                bubbles: true,
+                cancelable: true
+            };
+
+            const keydownEvent = new KeyboardEvent('keydown', eventOptions);
+            targetDocument.dispatchEvent(keydownEvent);
+
+            const keyupEvent = new KeyboardEvent('keyup', eventOptions);
+            targetDocument.dispatchEvent(keyupEvent);
+        }
 
         // Add drag functionality to the button
-        button.addEventListener('mousedown', (event) => {
+        toolbar.addEventListener('mousedown', (event) => {
             event.preventDefault();
 
-            let shiftX = event.clientX - button.getBoundingClientRect().left;
-            let shiftY = event.clientY - button.getBoundingClientRect().top;
+            let shiftX = event.clientX - toolbar.getBoundingClientRect().left;
+            let shiftY = event.clientY - toolbar.getBoundingClientRect().top;
 
             function moveAt(pageX, pageY) {
-                button.style.left = pageX - shiftX + 'px';
-                button.style.top = pageY - shiftY + 'px';
-                button.style.bottom = 'auto'; // Reset bottom to auto for dynamic positioning
-                button.style.right = 'auto'; // Reset right to auto for dynamic positioning
+                toolbar.style.left = pageX - shiftX + 'px';
+                toolbar.style.top = pageY - shiftY + 'px';
+                toolbar.style.bottom = 'auto'; // Reset bottom to auto for dynamic positioning
+                toolbar.style.right = 'auto'; // Reset right to auto for dynamic positioning
             }
 
             function onMouseMove(event) {
@@ -224,15 +269,15 @@
 
             document.addEventListener('mousemove', onMouseMove);
 
-            button.addEventListener('mouseup', () => {
+            toolbar.addEventListener('mouseup', () => {
                 document.removeEventListener('mousemove', onMouseMove);
             }, { once: true });
         });
 
-        button.addEventListener('dragstart', () => false); // Disable default drag behavior
+        toolbar.addEventListener('dragstart', () => false); // Disable default drag behavior
 
         // Append the button to the main document's body (so it floats above the iframe)
-        document.body.appendChild(button);
+        document.body.appendChild(toolbar);
         GM_log("Strikethrough Button: Button added to the page.");
     }
 
