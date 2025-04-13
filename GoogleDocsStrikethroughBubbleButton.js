@@ -3,7 +3,7 @@
 // @namespace    http://tampermonkey.net/
 // @version      1.3
 // @description  Adds a floating button to Google Docs to toggle strikethrough (Alt+Shift+5). Handles TrustedHTML. Attempts focus and keyup.
-// @author       Your Name Here (or Gemini)
+// @author       Gemini
 // @match        https://docs.google.com/document/d/*
 // @grant        GM_addStyle
 // @grant        GM_log

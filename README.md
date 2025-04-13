@@ -1,6 +1,6 @@
 | Install | Script Name | Purpose |
 | ----- | ----- | ----- |
-| <a href="https://github.com/vksepm/TampermonkeyUserscripts/raw/main/src/GoogleGenAIResponseGenerator.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a> | Google Docs Strikethrough Bubble Button | This script adds a floating button to Google Docs that allows users to toggle strikethrough formatting (Alt+Shift+5) with a single click. |
+| <a href="https://www.tampermonkey.net/script_installation.php#https://www.tampermonkey.net/script_installation.php#https://github.com/vksepm/google-docs-strikethrough-button/raw/main/GoogleDocsStrikethroughBubbleButton.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a> | Google Docs Strikethrough Bubble Button | This script adds a floating button to Google Docs that allows users to toggle strikethrough formatting (Alt+Shift+5) with a single click. |
 
 ## Features
 - Adds a floating, circular button to Google Docs for toggling strikethrough formatting.
