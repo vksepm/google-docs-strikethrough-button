@@ -13,243 +13,154 @@
 (function() {
     'use strict';
 
-    // --- Configuration ---
-    const BUTTON_POSITION = { bottom: '20px', right: '20px' }; // Adjust position as needed
-    const BUTTON_SIZE = '45px';
-    const BUTTON_BACKGROUND = '#4285F4'; // Google Blue
-    const BUTTON_ICON_COLOR = '#ffffff'; // White icon
-    const Z_INDEX = '9999'; // Ensure it's above most elements
+    // Configuration constants
+    const CONFIG = {
+        BUTTON_POSITION: { bottom: '20px', right: '20px' },
+        BUTTON_SIZE: '45px',
+        BUTTON_BACKGROUND: '#4285F4',
+        BUTTON_ICON_COLOR: '#ffffff',
+        Z_INDEX: '9999',
+        MAX_RETRIES: 10,
+        RETRY_DELAY: 500
+    };
 
-    // --- Styling for the button ---
-    GM_addStyle(`
-        #strikethrough-bubble-button {
-            position: fixed;
-            bottom: ${BUTTON_POSITION.bottom};
-            right: ${BUTTON_POSITION.right};
-            width: ${BUTTON_SIZE};
-            height: ${BUTTON_SIZE};
-            background-color: ${BUTTON_BACKGROUND};
-            color: ${BUTTON_ICON_COLOR}; /* Fallback color */
+    // Utility function to log messages
+    function logMessage(message) {
+        GM_log(`Formatting Toolbar: ${message}`);
+    }
+
+    // Helper function to create SVG icons
+    function createSVGIcon(iconPaths) {
+        const svgNS = "http://www.w3.org/2000/svg";
+        const svg = document.createElementNS(svgNS, "svg");
+        svg.setAttribute("xmlns", svgNS);
+        svg.setAttribute("width", "24");
+        svg.setAttribute("height", "24");
+        svg.setAttribute("viewBox", "0 0 24 24");
+        svg.setAttribute("fill", "none");
+        svg.setAttribute("stroke", "currentColor");
+        svg.setAttribute("stroke-width", "2");
+        svg.setAttribute("stroke-linecap", "round");
+        svg.setAttribute("stroke-linejoin", "round");
+
+        iconPaths.forEach(pathData => {
+            const path = document.createElementNS(svgNS, pathData.type);
+            Object.entries(pathData.attributes).forEach(([key, value]) => {
+                path.setAttribute(key, value);
+            });
+            svg.appendChild(path);
+        });
+
+        return svg;
+    }
+
+    // Utility function to create a button
+    function createButton(title, shortcut, iconPaths, onClick) {
+        const button = document.createElement('button');
+        button.title = `${title} (${shortcut})`;
+        button.style = `
+            width: ${CONFIG.BUTTON_SIZE};
+            height: ${CONFIG.BUTTON_SIZE};
+            background-color: ${CONFIG.BUTTON_BACKGROUND};
+            color: ${CONFIG.BUTTON_ICON_COLOR};
             border: none;
-            border-radius: 50%; /* Makes it round */
+            border-radius: 50%;
             box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
             cursor: pointer;
-            z-index: ${Z_INDEX};
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 20px; /* Base size reference */
+            font-size: 20px;
+            font-family: Arial, sans-serif;
             transition: background-color 0.2s ease, transform 0.1s ease;
-            padding: 0; /* Remove default padding */
-            line-height: 1; /* Ensure icon is centered vertically */
-        }
+        `;
 
-        #strikethrough-bubble-button:hover {
-            background-color: #357ABD; /* Darker blue on hover */
-        }
+        button.addEventListener('mouseover', () => {
+            button.style.backgroundColor = '#357ABD';
+        });
+        button.addEventListener('mouseout', () => {
+            button.style.backgroundColor = CONFIG.BUTTON_BACKGROUND;
+        });
+        button.addEventListener('mousedown', () => {
+            button.style.transform = 'scale(0.95)';
+        });
+        button.addEventListener('mouseup', () => {
+            button.style.transform = 'scale(1)';
+        });
+        button.addEventListener('click', onClick);
 
-        #strikethrough-bubble-button:active {
-            transform: scale(0.95); /* Slight shrink effect on click */
-        }
+        // Add SVG icon to the button
+        const svgIcon = createSVGIcon(iconPaths);
+        button.appendChild(svgIcon);
 
-        /* SVG Icon Styling */
-        #strikethrough-bubble-button svg {
-            width: 60%; /* Adjust icon size within the button */
-            height: 60%;
-            stroke: ${BUTTON_ICON_COLOR}; /* Use stroke for the icon color */
-            fill: none; /* Ensure SVG is not filled if not intended */
-        }
-    `);
-
-    // --- Function to simulate the keypress ---
-    function simulateStrikethroughKeypress(targetDocument) {
-        if (!targetDocument || !targetDocument.body) {
-            GM_log("Strikethrough Button: Target document or body not found.");
-            return;
-        }
-
-        // Determine the best target element within the iframe
-        let targetElement = targetDocument.body;
-        // If there's an active element within the iframe, and it's not the body itself, prefer that.
-        // This often targets the specific editable paragraph or element.
-        if (targetDocument.activeElement && targetDocument.activeElement !== targetDocument.body) {
-            targetElement = targetDocument.activeElement;
-            GM_log("Strikethrough Button: Targeting activeElement within iframe.");
-        } else {
-            GM_log("Strikethrough Button: Targeting iframe body.");
-        }
-
-        // Try focusing the target element first (might be necessary for event listeners)
-        // Use try-catch in case focus fails or causes unexpected side effects (like scrolling)
-        try {
-            // Check if the target is focusable and not already focused
-            if (typeof targetElement.focus === 'function' && document.activeElement !== targetElement) {
-                 targetElement.focus();
-                 GM_log("Strikethrough Button: Focused target element.");
-            } else if (document.activeElement === targetElement) {
-                 GM_log("Strikethrough Button: Target element already focused.");
-            } else {
-                 GM_log("Strikethrough Button: Target element might not be focusable.");
-            }
-        } catch (e) {
-            GM_log(`Strikethrough Button: Focusing target element failed: ${e}`);
-            // Proceed even if focus fails, maybe it's not strictly required
-        }
-
-        GM_log("Strikethrough Button: Simulating Alt+Shift+5 keydown/keyup");
-
-        const eventOptions = {
-            key: '5',
-            code: 'Digit5',
-            keyCode: 53, // Deprecated but sometimes needed
-            which: 53,   // Deprecated but sometimes needed
-            altKey: true,
-            shiftKey: true,
-            ctrlKey: false,
-            metaKey: false,
-            bubbles: true,  // Allow event to bubble up
-            cancelable: true // Allow event to be cancelled
-        };
-
-        // Create and dispatch the keydown event
-        const keydownEvent = new KeyboardEvent('keydown', eventOptions);
-        const dispatchResultDown = targetElement.dispatchEvent(keydownEvent);
-        GM_log(`Strikethrough Button: keydown dispatched to ${targetElement.tagName}. Result: ${dispatchResultDown}`);
-
-        // Create and dispatch the keyup event (often necessary to complete the shortcut)
-        const keyupEvent = new KeyboardEvent('keyup', eventOptions);
-        const dispatchResultUp = targetElement.dispatchEvent(keyupEvent);
-        GM_log(`Strikethrough Button: keyup dispatched to ${targetElement.tagName}. Result: ${dispatchResultUp}`);
-
-        // Check if the event was cancelled (preventDefault was called), which often indicates it was processed.
-        if (!dispatchResultDown || !keydownEvent.defaultPrevented) {
-             GM_log("Strikethrough Button: WARNING - keydown event was not cancelled by the page. Shortcut might not have been processed.");
-        } else {
-             GM_log("Strikethrough Button: keydown event was cancelled (likely processed).");
-        }
-         if (!dispatchResultUp || !keyupEvent.defaultPrevented) {
-             // Keyup cancellation is less common to check, but log anyway
-             GM_log("Strikethrough Button: keyup event was not cancelled by the page.");
-         }
+        return button;
     }
 
+    // Utility function to simulate keypress
+    function simulateKeypress(targetDocument, key, ctrlKey = false, altKey = false, shiftKey = false) {
+        const eventOptions = {
+            key: key,
+            code: `Key${key.toUpperCase()}`,
+            keyCode: key.toUpperCase().charCodeAt(0),
+            which: key.toUpperCase().charCodeAt(0),
+            ctrlKey: ctrlKey,
+            altKey: altKey,
+            shiftKey: shiftKey,
+            bubbles: true,
+            cancelable: true
+        };
 
-    // --- Create and add the button ---
-    let retryCount = 0;
-    const MAX_RETRIES = 10; // Limit retries to avoid infinite loops
+        const keydownEvent = new KeyboardEvent('keydown', eventOptions);
+        targetDocument.dispatchEvent(keydownEvent);
 
-    function addButton() {
-        // Check if button already exists
-        if (document.getElementById('strikethrough-bubble-button')) {
-            return;
-        }
+        const keyupEvent = new KeyboardEvent('keyup', eventOptions);
+        targetDocument.dispatchEvent(keyupEvent);
+    }
 
-        // Find the Google Docs editing iframe
-        const editorIframe = document.querySelector('iframe.docs-texteventtarget-iframe');
-
-        if (!editorIframe || !editorIframe.contentDocument) {
-            retryCount++;
-            if (retryCount > MAX_RETRIES) {
-                GM_log("Strikethrough Button: Failed to find the editor iframe after maximum retries.");
-                return;
-            }
-            GM_log(`Strikethrough Button: Editor iframe not found. Retrying... (${retryCount}/${MAX_RETRIES})`);
-            setTimeout(addButton, 500); // Retry after 500ms
-            return;
-        }
-
-        GM_log("Strikethrough Button: Editor iframe found. Adding button.");
-        const targetDoc = editorIframe.contentDocument;
-
-        // Create a toolbar container
+    // Function to add the toolbar
+    function addToolbar(targetDoc) {
         const toolbar = document.createElement('div');
         toolbar.id = 'formatting-toolbar';
-        toolbar.style.position = 'fixed';
-        toolbar.style.bottom = '20px';
-        toolbar.style.right = '20px';
-        toolbar.style.display = 'flex';
-        toolbar.style.flexDirection = 'column'; // Update toolbar styling for vertical alignment
-        toolbar.style.gap = '10px';
-        toolbar.style.zIndex = Z_INDEX;
+        toolbar.style = `
+            position: fixed;
+            bottom: ${CONFIG.BUTTON_POSITION.bottom};
+            right: ${CONFIG.BUTTON_POSITION.right};
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: ${CONFIG.Z_INDEX};
+        `;
 
-        // Helper function to create a button
-        function createButton(title, shortcut, iconPath, onClick) {
-            const button = document.createElement('button');
-            button.title = `${title} (${shortcut})`;
-            button.style.width = BUTTON_SIZE;
-            button.style.height = BUTTON_SIZE;
-            button.style.backgroundColor = BUTTON_BACKGROUND;
-            button.style.color = BUTTON_ICON_COLOR;
-            button.style.border = 'none';
-            button.style.borderRadius = '50%';
-            button.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.2)';
-            button.style.cursor = 'pointer';
-            button.style.display = 'flex';
-            button.style.justifyContent = 'center';
-            button.style.alignItems = 'center';
-            button.style.fontSize = '20px';
-            button.style.fontFamily = 'Arial, sans-serif'; // Ensure consistent font
-            button.style.transition = 'background-color 0.2s ease, transform 0.1s ease';
+        // Define SVG paths for each button
+        const ICON_PATHS = {
+            bold: [
+                { type: 'path', attributes: { d: 'M6 4h8a4 4 0 0 1 0 8H6z' } },
+                { type: 'path', attributes: { d: 'M6 12h8a4 4 0 0 1 0 8H6z' } }
+            ],
+            italic: [
+                { type: 'line', attributes: { x1: '19', y1: '4', x2: '10', y2: '4' } },
+                { type: 'line', attributes: { x1: '14', y1: '20', x2: '5', y2: '20' } },
+                { type: 'line', attributes: { x1: '15', y1: '4', x2: '9', y2: '20' } }
+            ],
+            underline: [
+                { type: 'path', attributes: { d: 'M6 4v6a6 6 0 0 0 12 0V4' } },
+                { type: 'line', attributes: { x1: '4', y1: '20', x2: '20', y2: '20' } }
+            ],
+            strikethrough: [
+                { type: 'path', attributes: { d: 'M16 4H9a3 3 0 0 0-2.83 4' } },
+                { type: 'path', attributes: { d: 'M14 12a4 4 0 0 1 0 8H6' } },
+                { type: 'line', attributes: { x1: '4', y1: '12', x2: '20', y2: '12' } }
+            ]
+        };
 
-            // Add hover and active effects
-            button.addEventListener('mouseover', () => {
-                button.style.backgroundColor = '#357ABD';
-            });
-            button.addEventListener('mouseout', () => {
-                button.style.backgroundColor = BUTTON_BACKGROUND;
-            });
-            button.addEventListener('mousedown', () => {
-                button.style.transform = 'scale(0.95)';
-            });
-            button.addEventListener('mouseup', () => {
-                button.style.transform = 'scale(1)';
-            });
+        // Add buttons to the toolbar with SVG icons
+        toolbar.appendChild(createButton('Bold', 'Ctrl+B', ICON_PATHS.bold, () => simulateKeypress(targetDoc, 'b', true)));
+        toolbar.appendChild(createButton('Italic', 'Ctrl+I', ICON_PATHS.italic, () => simulateKeypress(targetDoc, 'i', true)));
+        toolbar.appendChild(createButton('Underline', 'Ctrl+U', ICON_PATHS.underline, () => simulateKeypress(targetDoc, 'u', true)));
+        toolbar.appendChild(createButton('Strikethrough', 'Alt+Shift+5', ICON_PATHS.strikethrough, () => simulateKeypress(targetDoc, '5', false, true, true)));
 
-            // Add click event
-            button.addEventListener('click', onClick);
-
-            // Add text label for the button
-            const label = document.createElement('span');
-            label.textContent = title.charAt(0); // Use the first letter of the title as the label
-            label.style.color = BUTTON_ICON_COLOR;
-            label.style.fontSize = '16px';
-            label.style.fontFamily = 'Arial, sans-serif';
-            button.appendChild(label);
-
-            return button;
-        }
-
-        // Add buttons to the toolbar
-        toolbar.appendChild(createButton('Bold', 'Ctrl+B', null, () => simulateKeypress(targetDoc, 'b', true, false)));
-        toolbar.appendChild(createButton('Italic', 'Ctrl+I', null, () => simulateKeypress(targetDoc, 'i', true, false)));
-        toolbar.appendChild(createButton('Underline', 'Ctrl+U', null, () => simulateKeypress(targetDoc, 'u', true, false)));
-        toolbar.appendChild(createButton('Strikethrough', 'Alt+Shift+5', null, () => simulateKeypress(targetDoc, '5', false, true, true)));
-
-        // Append the toolbar to the document
         document.body.appendChild(toolbar);
 
-        // Function to simulate keypress for formatting actions
-        function simulateKeypress(targetDocument, key, ctrlKey = false, altKey = false, shiftKey = false) {
-            const eventOptions = {
-                key: key,
-                code: `Key${key.toUpperCase()}`,
-                keyCode: key.toUpperCase().charCodeAt(0),
-                which: key.toUpperCase().charCodeAt(0),
-                ctrlKey: ctrlKey,
-                altKey: altKey,
-                shiftKey: shiftKey,
-                bubbles: true,
-                cancelable: true
-            };
-
-            const keydownEvent = new KeyboardEvent('keydown', eventOptions);
-            targetDocument.dispatchEvent(keydownEvent);
-
-            const keyupEvent = new KeyboardEvent('keyup', eventOptions);
-            targetDocument.dispatchEvent(keyupEvent);
-        }
-
-        // Add drag functionality to the button
         toolbar.addEventListener('mousedown', (event) => {
             event.preventDefault();
 
@@ -259,8 +170,8 @@
             function moveAt(pageX, pageY) {
                 toolbar.style.left = pageX - shiftX + 'px';
                 toolbar.style.top = pageY - shiftY + 'px';
-                toolbar.style.bottom = 'auto'; // Reset bottom to auto for dynamic positioning
-                toolbar.style.right = 'auto'; // Reset right to auto for dynamic positioning
+                toolbar.style.bottom = 'auto';
+                toolbar.style.right = 'auto';
             }
 
             function onMouseMove(event) {
@@ -274,15 +185,35 @@
             }, { once: true });
         });
 
-        toolbar.addEventListener('dragstart', () => false); // Disable default drag behavior
-
-        // Append the button to the main document's body (so it floats above the iframe)
-        document.body.appendChild(toolbar);
-        GM_log("Strikethrough Button: Button added to the page.");
+        toolbar.addEventListener('dragstart', () => false);
     }
 
-    // --- Initialization ---
-    // Use window.onload for initial page load, then addButton handles iframe check/retry.
-    window.addEventListener('load', addButton);
+    // Function to initialize the script
+    function initialize() {
+        let retryCount = 0;
+
+        function tryAddToolbar() {
+            const editorIframe = document.querySelector('iframe.docs-texteventtarget-iframe');
+
+            if (!editorIframe || !editorIframe.contentDocument) {
+                retryCount++;
+                if (retryCount > CONFIG.MAX_RETRIES) {
+                    logMessage("Failed to find the editor iframe after maximum retries.");
+                    return;
+                }
+                logMessage(`Editor iframe not found. Retrying... (${retryCount}/${CONFIG.MAX_RETRIES})`);
+                setTimeout(tryAddToolbar, CONFIG.RETRY_DELAY);
+                return;
+            }
+
+            logMessage("Editor iframe found. Adding toolbar.");
+            addToolbar(editorIframe.contentDocument);
+        }
+
+        tryAddToolbar();
+    }
+
+    // Initialize the script on page load
+    window.addEventListener('load', initialize);
 
 })();
